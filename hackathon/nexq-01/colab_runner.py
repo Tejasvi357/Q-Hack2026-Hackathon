@@ -1,18 +1,7 @@
-"""
-========================================================================================
-NexQ-01: Quantum Verification & Error Mitigation Platform (Production UI)
-========================================================================================
-Ultra-High-Contrast Cyberpunk Quantum Dashboard with:
-- 100% crisp, readable high-contrast dark inputs (no washed-out white text!)
-- 1-Click hardware preset buttons (IBM Heron, IonQ, NISQ Stress, Clean Limit)
-- Real-time MABK Bell witness non-locality certification (S > 2.0)
-- Uhlmann State Fidelity recovery gauge (+Δ% restored)
-- 3D Density Matrix Tomography & Richardson ZNE extrapolation curves
-========================================================================================
-"""
-
-# Cell 1 in Colab:
-# !pip install -q gradio qiskit qiskit-aer scipy numpy plotly matplotlib
+# ==============================================================================
+# NexQ-01 Quantum Verification Platform (High-Contrast Professional UI)
+# ==============================================================================
+!pip install -q gradio qiskit qiskit-aer scipy numpy plotly matplotlib
 
 import traceback
 import numpy as np
@@ -28,9 +17,7 @@ from qiskit_aer.noise import NoiseModel, depolarizing_error, thermal_relaxation_
 import plotly.graph_objects as go
 import gradio as gr
 
-# ==============================================================================
-# 1. QUANTUM CIRCUITS
-# ==============================================================================
+# --- 1. Circuit Synthesizers ---
 def generate_ghz(n: int):
     qc = QuantumCircuit(n)
     qc.h(0)
@@ -50,9 +37,7 @@ def generate_w(n: int):
 def get_basis_labels(n: int):
     return [format(i, f'0{n}b') for i in range(1 << n)]
 
-# ==============================================================================
-# 2. NOISE MODEL
-# ==============================================================================
+# --- 2. Hardware Noise Model ---
 def make_noise(t1, t2, gate_err, ro_err):
     nm = NoiseModel()
     eff_t1 = max(1.0, float(t1))
@@ -75,9 +60,7 @@ def make_noise(t1, t2, gate_err, ro_err):
         nm.add_all_qubit_readout_error(ReadoutError(ro_mat))
     return nm
 
-# ==============================================================================
-# 3. MABK BELL WITNESS
-# ==============================================================================
+# --- 3. MABK Terms ---
 def get_mabk_paulis(n: int):
     def _rec(k):
         if k == 1: return [(2.0, "X")], [(2.0, "Y")]
@@ -96,9 +79,7 @@ def get_mabk_paulis(n: int):
     for c, p in raw: grp[p] += c
     return [(round(v, 6), p) for p, v in grp.items() if abs(v) > 1e-6]
 
-# ==============================================================================
-# 4. MITIGATION ENGINE (ZNE + READOUT INVERSION)
-# ==============================================================================
+# --- 4. Mitigation Pipeline ---
 def fold_cx(circuit: QuantumCircuit, scale: int):
     k = max(1, scale)
     if k % 2 == 0: k += 1
@@ -133,7 +114,6 @@ def run_zne(clean_qc, noise_model, shots=2048):
     p_mit /= np.sum(p_mit)
     
     mit_counts = {all_b[i]: int(round(p_mit[i] * shots)) for i in range(1 << n) if p_mit[i] > 0}
-    
     top_indices = np.argsort(p_mit)[-4:][::-1]
     zne_curve = {"scale_factors": [0.0, 1.0, 3.0, 5.0]}
     for idx in top_indices:
@@ -155,9 +135,7 @@ def invert_readout(counts, n, ro_err, shots=2048):
     res /= np.sum(res)
     return {all_b[i]: int(round(res[i] * shots)) for i in range(dim) if res[i] > 0}
 
-# ==============================================================================
-# 5. EXECUTION PIPELINE & METRICS
-# ==============================================================================
+# --- 5. Simulation Runner ---
 def run_quantum_verification(num_qubits, state_type, t1, t2, gate_err_pct, readout_err_pct):
     try:
         n = int(num_qubits)
@@ -165,19 +143,15 @@ def run_quantum_verification(num_qubits, state_type, t1, t2, gate_err_pct, reado
         ro_err = float(readout_err_pct) / 100.0
         shots = 2048
 
-        # 1. State Preparation Circuits
         clean_qc = generate_ghz(n) if state_type == "GHZ" else generate_w(n)
         meas_qc = clean_qc.copy()
         meas_qc.measure_all()
 
-        # 2. Hardware Noise Model
         noise_model = make_noise(t1, t2, gate_err, ro_err)
 
-        # 3. Clean and Noisy Simulation
         id_counts = {k.replace(' ', ''): v for k, v in AerSimulator().run(meas_qc, shots=shots).result().get_counts().items()}
         ns_counts = {k.replace(' ', ''): v for k, v in AerSimulator(noise_model=noise_model).run(meas_qc, shots=shots).result().get_counts().items()}
 
-        # 4. State Tomography & Uhlmann Fidelity
         rho_id = DensityMatrix.from_instruction(clean_qc).data
         sim_dm = AerSimulator(method="density_matrix", noise_model=noise_model)
         dm_qc = clean_qc.copy()
@@ -185,7 +159,6 @@ def run_quantum_verification(num_qubits, state_type, t1, t2, gate_err_pct, reado
         rho_ns = np.array(sim_dm.run(dm_qc).result().data()["rho"], dtype=complex)
         fid_noisy = float(np.clip(state_fidelity(rho_id, rho_ns), 0.0, 1.0))
 
-        # 5. MABK Bell Non-Locality Witness
         pauli_terms = get_mabk_paulis(n)
         s_val = 0.0
         for coeff, p_str in pauli_terms:
@@ -202,11 +175,9 @@ def run_quantum_verification(num_qubits, state_type, t1, t2, gate_err_pct, reado
         s_raw = round(abs(float(s_val)), 3)
         s_theo = round(2.0 ** ((n + 1) / 2.0) if state_type == "GHZ" else 2.0 * np.sqrt(n - 1), 3)
 
-        # 6. Error Mitigation (ZNE + Inversion)
         zne_counts, zne_curve = run_zne(clean_qc, noise_model, shots=shots)
         mit_counts = invert_readout(zne_counts, n, ro_err, shots=shots)
 
-        # Fidelity Recovery Computation
         all_b = get_basis_labels(n)
         pi = np.array([id_counts.get(b, 0) / shots for b in all_b])
         pn = np.array([ns_counts.get(b, 0) / shots for b in all_b])
@@ -217,7 +188,6 @@ def run_quantum_verification(num_qubits, state_type, t1, t2, gate_err_pct, reado
 
         fid_delta = (fid_mit - fid_noisy) * 100.0
 
-        # Non-Locality Verdict
         is_nonlocal = s_mit > 2.0
         badge_bg = "#052e16" if is_nonlocal else "#450a0a"
         badge_border = "#10b981" if is_nonlocal else "#f43f5e"
@@ -231,7 +201,6 @@ def run_quantum_verification(num_qubits, state_type, t1, t2, gate_err_pct, reado
 
         status_html = f"""
         <div style="background: #0f172a; padding: 20px; border-radius: 14px; border: 1px solid #1e293b; margin-bottom: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.6);">
-            <!-- Verdict Badge Banner -->
             <div style="background: {badge_bg}; border: 1px solid {badge_border}; padding: 12px 18px; border-radius: 10px; display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
                 <div style="display: flex; align-items: center; gap: 10px;">
                     <div style="width: 12px; height: 12px; border-radius: 50%; background: {badge_border}; box-shadow: 0 0 10px {badge_border};"></div>
@@ -242,41 +211,38 @@ def run_quantum_verification(num_qubits, state_type, t1, t2, gate_err_pct, reado
                 </span>
             </div>
 
-            <!-- 3 Stat Metrics Cards -->
             <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;">
                 <div style="background: #1e293b; padding: 16px; border-radius: 10px; border: 1px solid #334155;">
-                    <div style="font-size: 11px; color: #94a3b8; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">State Fidelity (F)</div>
+                    <div style="font-size: 11px; color: #94a3b8; font-weight: 700; text-transform: uppercase;">State Fidelity (F)</div>
                     <div style="font-size: 26px; font-weight: 900; color: #10b981; font-family: monospace; margin: 4px 0;">{fid_mit*100:.1f}%</div>
-                    <div style="font-size: 12px; color: #cbd5e1;">Raw Noisy: <span style="color: #f87171; font-weight: 700;">{fid_noisy*100:.1f}%</span> <span style="color: #38bdf8; font-weight: 800;">(+{fid_delta:.1f}%)</span></div>
+                    <div style="font-size: 12px; color: #cbd5e1;">Raw: <span style="color: #f87171; font-weight: 700;">{fid_noisy*100:.1f}%</span> <span style="color: #38bdf8; font-weight: 800;">(+{fid_delta:.1f}%)</span></div>
                 </div>
 
                 <div style="background: #1e293b; padding: 16px; border-radius: 10px; border: 1px solid #334155;">
-                    <div style="font-size: 11px; color: #94a3b8; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">MABK Bell Witness (S)</div>
+                    <div style="font-size: 11px; color: #94a3b8; font-weight: 700; text-transform: uppercase;">MABK Bell Witness (S)</div>
                     <div style="font-size: 26px; font-weight: 900; color: {badge_border}; font-family: monospace; margin: 4px 0;">{s_mit:.3f}</div>
-                    <div style="font-size: 12px; color: #cbd5e1;">Classical: <span style="color: #94a3b8;">S ≤ 2.0</span> | Max: <span style="color: #38bdf8;">{s_theo:.2f}</span></div>
+                    <div style="font-size: 12px; color: #cbd5e1;">Limit: <span style="color: #94a3b8;">S ≤ 2.0</span> | Max: <span style="color: #38bdf8;">{s_theo:.2f}</span></div>
                 </div>
 
                 <div style="background: #1e293b; padding: 16px; border-radius: 10px; border: 1px solid #334155;">
-                    <div style="font-size: 11px; color: #94a3b8; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Quantum Circuit Scale</div>
+                    <div style="font-size: 11px; color: #94a3b8; font-weight: 700; text-transform: uppercase;">Circuit Scale</div>
                     <div style="font-size: 26px; font-weight: 900; color: #38bdf8; font-family: monospace; margin: 4px 0;">{clean_qc.depth()} Depth</div>
-                    <div style="font-size: 12px; color: #cbd5e1;">{sum(clean_qc.count_ops().values())} Gates | {n} Qubits ({1 << n} States)</div>
+                    <div style="font-size: 12px; color: #cbd5e1;">{sum(clean_qc.count_ops().values())} Gates | {n} Qubits</div>
                 </div>
             </div>
 
-            <!-- Explanatory Insight -->
             <div style="margin-top: 14px; background: #131d2e; border: 1px solid #20304a; padding: 12px 16px; border-radius: 8px; font-size: 12px; color: #94a3b8; line-height: 1.5;">
-                <b style="color: #38bdf8;">Hardware Verification Insight:</b> {status_desc}
+                <b style="color: #38bdf8;">Insight:</b> {status_desc}
             </div>
         </div>
         """
 
-        # Plot 1: Grouped Output Histogram
         top_states = sorted(list(set(list(id_counts.keys()) + list(ns_counts.keys()))),
                             key=lambda k: max(id_counts.get(k, 0), ns_counts.get(k, 0)), reverse=True)[:8]
         fig_hist = go.Figure(data=[
             go.Bar(name='Ideal (Clean)', x=[f'|{s}⟩' for s in top_states], y=[id_counts.get(k, 0)/shots for k in top_states], marker_color='#06b6d4'),
             go.Bar(name='Noisy NISQ', x=[f'|{s}⟩' for s in top_states], y=[ns_counts.get(k, 0)/shots for k in top_states], marker_color='#f43f5e'),
-            go.Bar(name='Mitigated Signal (ZNE + Inversion)', x=[f'|{s}⟩' for s in top_states], y=[mit_counts.get(k, 0)/shots for k in top_states], marker_color='#10b981')
+            go.Bar(name='Mitigated Signal', x=[f'|{s}⟩' for s in top_states], y=[mit_counts.get(k, 0)/shots for k in top_states], marker_color='#10b981')
         ])
         fig_hist.update_layout(
             barmode='group',
@@ -289,7 +255,6 @@ def run_quantum_verification(num_qubits, state_type, t1, t2, gate_err_pct, reado
             yaxis=dict(title=dict(text="Probability P(x)", font=dict(color="#f8fafc")), tickfont=dict(color="#94a3b8"), gridcolor="#1e293b")
         )
 
-        # Plot 2: 3D Reconstructed Density Matrix Surface
         dim = min(16, 1 << n)
         sub_rho = np.real(rho_ns[:dim, :dim])
         lbls = [f'|{format(i, f"0{n}b")}>' for i in range(dim)]
@@ -312,7 +277,6 @@ def run_quantum_verification(num_qubits, state_type, t1, t2, gate_err_pct, reado
             )
         )
 
-        # Plot 3: ZNE Extrapolation Curves
         fig_zne = go.Figure()
         palette = ['#06b6d4', '#10b981', '#a855f7', '#f59e0b']
         scale_factors = zne_curve['scale_factors']
@@ -351,33 +315,19 @@ def run_quantum_verification(num_qubits, state_type, t1, t2, gate_err_pct, reado
         err_html = f"<div style='background: #450a0a; color: #fca5a5; padding: 16px; border-radius: 10px;'><b>Simulation Error:</b><pre>{traceback.format_exc()}</pre></div>"
         return err_html, go.Figure(), go.Figure(), go.Figure()
 
-# ==============================================================================
-# 6. HARDWARE PRESETS HANDLERS
-# ==============================================================================
-def set_heron():
-    return 120.0, 90.0, 0.5, 1.5
+# --- 6. Hardware Presets Handlers ---
+def set_heron(): return 120.0, 90.0, 0.5, 1.5
+def set_ionq(): return 160.0, 120.0, 0.3, 0.8
+def set_nisq(): return 20.0, 12.0, 4.5, 6.0
+def set_ideal(): return 200.0, 150.0, 0.0, 0.0
 
-def set_ionq():
-    return 160.0, 120.0, 0.3, 0.8
-
-def set_nisq():
-    return 20.0, 12.0, 4.5, 6.0
-
-def set_ideal():
-    return 200.0, 150.0, 0.0, 0.0
-
-# ==============================================================================
-# 7. HIGH-CONTRAST DARK CSS INJECTION
-# ==============================================================================
+# --- 7. High-Contrast Dark CSS Injection ---
 custom_css = """
-/* Force total dark theme and high contrast */
 body, .gradio-container {
     background: #070a13 !important;
     color: #f8fafc !important;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
 }
-
-/* Force dark input backgrounds and BRIGHT high-contrast text */
 input, input[type="text"], input[type="number"], select, textarea {
     background-color: #1e293b !important;
     color: #38bdf8 !important;
@@ -386,8 +336,6 @@ input, input[type="text"], input[type="number"], select, textarea {
     font-weight: 700 !important;
     font-size: 14px !important;
 }
-
-/* Number boxes inside sliders */
 input[type="number"] {
     background-color: #1e293b !important;
     color: #38bdf8 !important;
@@ -395,34 +343,24 @@ input[type="number"] {
     font-size: 14px !important;
     border: 1px solid #0284c7 !important;
 }
-
-/* Sliders */
 input[type="range"] {
     accent-color: #06b6d4 !important;
 }
-
-/* Labels and section titles */
 label, .block-title, span.text-gray-500 {
     color: #cbd5e1 !important;
     font-weight: 700 !important;
     font-size: 13px !important;
 }
-
-/* Blocks and Panels */
 .block {
     background: #0f172a !important;
     border: 1px solid #1e293b !important;
     border-radius: 12px !important;
 }
-
-/* Radio buttons */
 .gr-radio {
     background: #1e293b !important;
     border: 1px solid #334155 !important;
     color: #ffffff !important;
 }
-
-/* Big Action Button */
 button.btn-run {
     background: linear-gradient(135deg, #06b6d4 0%, #10b981 100%) !important;
     color: #020617 !important;
@@ -438,8 +376,6 @@ button.btn-run:hover {
     transform: translateY(-2px) !important;
     box-shadow: 0 6px 28px rgba(6, 182, 212, 0.6) !important;
 }
-
-/* Preset buttons */
 button.btn-preset {
     background: #1e293b !important;
     color: #e2e8f0 !important;
@@ -454,8 +390,6 @@ button.btn-preset:hover {
     color: #38bdf8 !important;
     background: #24324a !important;
 }
-
-/* Tabs */
 button.tab-nav {
     color: #94a3b8 !important;
     font-weight: 700 !important;
@@ -467,11 +401,8 @@ button.tab-nav.selected {
 }
 """
 
-# ==============================================================================
-# 8. BUILD AND LAUNCH DASHBOARD
-# ==============================================================================
+# --- 8. Build & Launch ---
 with gr.Blocks(css=custom_css, title="NexQ-01 Quantum Verification Platform") as demo:
-    # Header
     gr.HTML("""
     <div style="text-align: center; padding: 14px 0 6px 0;">
         <h1 style="font-size: 30px; font-weight: 900; background: linear-gradient(90deg, #38bdf8, #818cf8, #34d399); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin: 0;">
@@ -484,11 +415,9 @@ with gr.Blocks(css=custom_css, title="NexQ-01 Quantum Verification Platform") as
     """)
 
     with gr.Row():
-        # LEFT COLUMN: CONTROLS
         with gr.Column(scale=1):
             gr.Markdown("### 🎛️ Circuit & Noise Architecture")
             
-            # Preset Buttons Row
             gr.Markdown("**⚡ 1-Click Hardware Noise Presets:**")
             with gr.Row():
                 btn_heron = gr.Button("IBM Heron (133Q)", elem_classes=["btn-preset"])
@@ -508,7 +437,6 @@ with gr.Blocks(css=custom_css, title="NexQ-01 Quantum Verification Platform") as
 
             run_btn = gr.Button("🚀 Run Quantum Verification", variant="primary", elem_classes=["btn-run"])
 
-        # RIGHT COLUMN: VISUALIZATION & OUTPUT
         with gr.Column(scale=2):
             status_output = gr.HTML("""
             <div style="background: #0f172a; padding: 22px; border-radius: 12px; border: 1px dashed #334155; text-align: center; color: #94a3b8;">
@@ -525,13 +453,13 @@ with gr.Blocks(css=custom_css, title="NexQ-01 Quantum Verification Platform") as
                 with gr.TabItem("📈 ZNE Extrapolation Curves"):
                     zne_plot = gr.Plot(label="Noise Scaling Trajectories")
 
-    # Wire Preset Buttons
+    # Hook buttons
     btn_heron.click(fn=set_heron, outputs=[t1, t2, gate_err, ro_err])
     btn_ionq.click(fn=set_ionq, outputs=[t1, t2, gate_err, ro_err])
     btn_nisq.click(fn=set_nisq, outputs=[t1, t2, gate_err, ro_err])
     btn_ideal.click(fn=set_ideal, outputs=[t1, t2, gate_err, ro_err])
 
-    # Wire Execution
+    # Hook verification
     run_btn.click(
         fn=run_quantum_verification,
         inputs=[qubits, state, t1, t2, gate_err, ro_err],
