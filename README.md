@@ -161,75 +161,38 @@ $$\min_{\vec{p}} \|M \vec{p} - \vec{p}_{\text{noisy}}\|^2 \quad \text{subject to
 
 ## How to Run the Platform
 
-### Option A: Cloud Execution via GitHub Codespaces (Recommended for Cool Laptops!)
-Running on GitHub Codespaces offloads all CPU, RAM, and compilation tasks to Microsoft/GitHub cloud servers.
+### Option A:Google Colab (Recommended for Fast Setup)
+1. Running on Google Colab allows you to execute both the backend simulation engine and the interactive frontend UI directly without complex local environment setup.
 
-1. **Push this repo to GitHub** (see instructions below).
-2. Go to your GitHub repository in your browser.
-3. Click the green **Code** button $\to$ **Codespaces** tab $\to$ **Create codespace on main**.
-4. In the Codespace terminal, run:
-   ```bash
-   chmod +x start.sh
-   ./start.sh
-   ```
-5. Codespaces will automatically forward port `5173` (Frontend) and `8000` (Backend). Click the browser preview popup to use NexQ-01!
+2. Open Google Colab.
 
----
+3. Click on the Upload tab and select the notebook located at:
+   hackathon/nexq-01/nexq_01_colab.ipynb
+4. Alternatively, if your repository is pushed to GitHub, go to the GitHub tab in Colab and open nexq_01_colab.ipynb.
 
-### Option B: Google Colab Setup
-You can run the backend inside a free Google Colab GPU/CPU instance and connect the frontend:
+5. Run the runner script to start the UI and server:
 
-1. Create a new notebook at [colab.research.google.com](https://colab.research.google.com).
-2. Clone your repository:
-   ```python
-   !git clone https://github.com/<your-username>/nexq-01.git
-   %cd nexq-01/backend
-   !pip install -r requirements.txt pyngrok
-   ```
-3. Run the backend with ngrok tunnel:
-   ```python
-   import nest_asyncio
-   from pyngrok import ngrok
-   import uvicorn
+   # Run the unified launcher script from your workspace (collab_runner.py)
+   !python hackathon/nexq-01/colab_runner.py
+6. Follow the generated public URL (via LocalTunnel/ngrok output in the cell) to open the interactive UI dashboard in your browser.
    
-   ngrok.set_auth_token("YOUR_NGROK_TOKEN") # Optional or use localtunnel
-   public_url = ngrok.connect(8000).public_url
-   print("Backend live at:", public_url)
-   
-   # Run server
-   !uvicorn app.main:app --host 0.0.0.0 --port 8000
-   ```
-4. Point `VITE_API_URL` in `frontend/.env` to the ngrok public URL.
+### Option B : Local Execution in VS Code
+To run the complete platform (FastAPI backend + Vite/React frontend) locally:
 
----
+1. Clone & Navigate to Project Directory
+Open VS Code terminal and navigate to the project directory:
 
-### Option C: Local Execution
+    cd hackathon/nexq-01
+2. Start the Backend API (API docs will be available at: http://localhost:8000/docs)
+3. Start the Frontend UI 
 
-#### 1. Start the Python Backend
-```bash
-cd backend
-python -m venv venv
 
-# Windows
-venv\Scripts\activate
-# Linux / macOS
-source venv/bin/activate
+### Option C: All-in-One Local Runner
 
-pip install -r requirements.txt
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-```
-The API documentation is available at: `http://localhost:8000/docs`
+If you prefer launching both backend and frontend together using the included unified launcher:
 
-#### 2. Start the Frontend
-In a new terminal:
-```bash
-cd frontend
-npm install
-npm run dev
-```
-Open `http://localhost:5173` in your browser.
-
----
+   # From hackathon/nexq-01 root directory
+   python colab_runner.py
 
 ## Instructions to Push to GitHub
 
